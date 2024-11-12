@@ -1,0 +1,20 @@
+1- install git:
+winget install --id Git.Git -e --source winget
+
+2- verify python installation:
+python --version
+
+3- Set Up a Virtual Environment:
+    a- python -m venv web_vuln_env
+    b- activate venv
+        open powershell as admin
+        run this : Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+        When prompted, type Y (Yes) to confirm.
+        web_vuln_env\Scripts\Activate
+
+4- update pip:
+python -m pip install --upgrade pip
+
+5- Install esssential libbraries:
+pip install requests beautifulsoup4 selenium pycryptodome sslscan pandas jinja2
+
