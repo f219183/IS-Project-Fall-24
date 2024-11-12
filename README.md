@@ -1,6 +1,3 @@
-# IS-Project-Fall-24
-
-**Project Title:**
 # Automated Web Vulnerabilities Detection Tool 
 
 **Introduction:** 
