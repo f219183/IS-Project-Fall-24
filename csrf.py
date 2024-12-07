@@ -1,8 +1,12 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 import requests
-import getpass  # To hide the password input
+import getpass
+from webdriver_manager.chrome import ChromeDriverManager
+
 
 # Authenticate and get a session for restricted areas
 def authenticate_and_get_session(url, username, password):
@@ -21,18 +25,33 @@ def authenticate_and_get_session(url, username, password):
         print(f"Error during login: {e}")
     return None
 
-# Fetch dynamic content using Selenium
-def fetch_dynamic_content(url):
-    driver = webdriver.Chrome()  # Ensure chromedriver is installed
+
+# Add cookies from requests.Session to Selenium WebDriver
+def add_cookies_to_selenium(driver, session, domain):
+    cookies = session.cookies.get_dict()
+    for key, value in cookies.items():
+        driver.add_cookie({"name": key, "value": value, "domain": domain})
+
+
+# Fetch dynamic content using Selenium and session cookies
+def fetch_dynamic_content(url, session=None):
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
     driver.get(url)
+
+    if session:
+        domain = url.split("//")[-1].split("/")[0]
+        add_cookies_to_selenium(driver, session, domain)
+        driver.refresh()
+
     page_source = driver.page_source
     driver.quit()
     return BeautifulSoup(page_source, 'html.parser')
 
+
 # Detect CSRF vulnerabilities in forms
 def detect_csrf(url, session=None):
     print(f"Scanning {url} for CSRF vulnerabilities...")
-    soup = fetch_dynamic_content(url)
+    soup = fetch_dynamic_content(url, session=session)
 
     forms = soup.find_all('form')
     results = {
@@ -49,6 +68,9 @@ def detect_csrf(url, session=None):
         method = form.get('method', 'get').lower()
         inputs = form.find_all('input')
 
+        # Convert relative URLs to absolute URLs
+        action_url = urljoin(url, action) if action else url
+
         has_csrf_token = False
         for input_field in inputs:
             if input_field.get('type') == 'hidden' and 'csrf' in input_field.get('name', '').lower():
@@ -57,13 +79,14 @@ def detect_csrf(url, session=None):
 
         if not has_csrf_token:
             vulnerability = {
-                "action": action,
+                "action": action_url,
                 "method": method,
                 "inputs": [inp.get('name') for inp in inputs]
             }
             results["csrf_vulnerabilities"].append(vulnerability)
 
     return results
+
 
 # Main function
 if __name__ == "__main__":
