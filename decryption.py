@@ -1,54 +1,43 @@
-import base64
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.backends import default_backend
+import ssl
+import socket
+from datetime import datetime
 
-def decrypt_data(ciphertext, key):
-    """
-    Decrypts the given ciphertext using AES encryption in CBC mode.
+# List of known weak ciphers
+WEAK_CIPHERS = ["RC4", "DES", "3DES", "MD5", "NULL", "EXPORT", "CBC"]
 
-    Args:
-        ciphertext (bytes): The encrypted data to decrypt.
-        key (bytes): The decryption key (must be 16, 24, or 32 bytes long).
-
-    Returns:
-        str: The decrypted plaintext.
-    """
+# Function to check SSL/TLS configuration
+def evaluate_ssl_tls(hostname, port=443):
     try:
-        # Decode the base64-encoded ciphertext
-        ciphertext = base64.b64decode(ciphertext)
+        # Establish a connection to the server
+        context = ssl.create_default_context()
+        with socket.create_connection((hostname, port)) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                # Retrieve certificate details
+                cert = ssock.getpeercert()
+                print(f"Connected to {hostname}:{port}")
+                print("\nCertificate Details:")
+                issuer = cert.get("issuer")
+                validity_start = datetime.strptime(cert["notBefore"], "%b %d %H:%M:%S %Y GMT")
+                validity_end = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y GMT")
+                print(f"  Issuer: {issuer}")
+                print(f"  Validity: {validity_start} to {validity_end}")
+                if validity_end < datetime.now():
+                    print("  [WARNING] Certificate is expired!")
 
-        # Separate the IV from the ciphertext
-        iv = ciphertext[:16]  # First 16 bytes are the IV
-        encrypted_message = ciphertext[16:]
-
-        # Create AES cipher in CBC mode
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-        decryptor = cipher.decryptor()
-
-        # Decrypt the message
-        padded_plaintext = decryptor.update(encrypted_message) + decryptor.finalize()
-
-        # Unpad the plaintext
-        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-        plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
-
-        return plaintext.decode('utf-8')
+                # Check protocol and cipher
+                cipher = ssock.cipher()
+                protocol, cipher_suite, _ = cipher
+                print("\nConnection Details:")
+                print(f"  Protocol: {protocol}")
+                print(f"  Cipher: {cipher_suite}")
+                if any(weak_cipher in cipher_suite.upper() for weak_cipher in WEAK_CIPHERS):
+                    print(f"  [WARNING] Weak cipher detected: {cipher_suite}")
+                else:
+                    print("  NO Weak cipher detected. Cipher is secure.")
 
     except Exception as e:
-        print(f"Decryption failed: {e}")
-        return None
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
-    # Example ciphertext and key (replace these with your values)
-    encrypted_data = input("Enter the base64-encoded ciphertext: ")
-    decryption_key = input("Enter the decryption key (16, 24, or 32 characters): ").encode('utf-8')
-
-    # Validate key length
-    if len(decryption_key) not in (16, 24, 32):
-        print("Invalid key length. Key must be 16, 24, or 32 characters long.")
-    else:
-        # Perform decryption
-        plaintext = decrypt_data(encrypted_data, decryption_key)
-        if plaintext:
-            print(f"Decrypted plaintext: {plaintext}")
+    hostname = input("Enter the hostname or IP address: ")
+    evaluate_ssl_tls(hostname)
